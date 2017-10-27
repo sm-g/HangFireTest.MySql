@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hangfire;
 using Hangfire.MySql;
+using Serilog;
 
 namespace HangFireTest.MySql
 {
@@ -14,7 +15,7 @@ namespace HangFireTest.MySql
         [AutomaticRetry(Attempts = 0)]
         [LatencyTimeout(30)]
         // [StatisticsHistory]
-        public static void Wait500AndCheckToken(IJobCancellationToken token)
+        public static void Wait500AndCheckToken(CancellationToken token)
         {
             Console.WriteLine("Begin " + nameof(Wait500AndCheckToken));
 
@@ -34,8 +35,13 @@ namespace HangFireTest.MySql
     {
         private static void Main(string[] args)
         {
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.Console(outputTemplate: "{Timestamp:HH:mm:ss}|{ThreadId:00}|{Level:u3}{EventId} {SourceContext}{Scope}|{Message}{NewLine}{Exception}")
+                .Enrich.FromLogContext()
+                .MinimumLevel.Verbose()
+                .CreateLogger();
             GlobalConfiguration.Configuration
-                .UseColouredConsoleLogProvider()
+                .UseColouredConsoleLogProvider() // comment to use Serilog
                 .UseStorage(new MySqlStorage("server=localhost;port=3306;database=hf_test;uid=root;password=1111;Convert Zero Datetime=True;Allow User Variables=True", new MySqlStorageOptions()
                 {
                     QueuePollInterval = TimeSpan.FromSeconds(3),
@@ -51,11 +57,11 @@ namespace HangFireTest.MySql
 
             using (new BackgroundJobServer(options))
             {
-                var id = BackgroundJob.Enqueue(() => MyServices.Wait500AndCheckToken(JobCancellationToken.Null));
+                var id = BackgroundJob.Enqueue(() => MyServices.Wait500AndCheckToken(CancellationToken.None));
                 Console.WriteLine("press to delete job");
                 Console.ReadLine();
-                //Console.WriteLine("Going to delete");
-                //  var wasDeleted = BackgroundJob.Delete(id);
+                Console.WriteLine("Going to delete");
+                var wasDeleted = BackgroundJob.Delete(id);
                 //Console.WriteLine(wasDeleted);
                 Console.ReadLine();
             }
