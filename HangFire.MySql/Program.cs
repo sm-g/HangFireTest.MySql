@@ -9,14 +9,15 @@ using Hangfire;
 using Hangfire.MySql;
 using Hangfire.Server;
 using Serilog;
+using Microsoft.EntityFrameworkCore;
 
 namespace HangFireTest.MySql
 {
     internal class MyServices
     {
         [MyFilter]
-        [AutomaticRetry(Attempts = 0)]
-        [LatencyTimeout(30)]
+        [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+        //[LatencyTimeout(30)]
         [DisplayName("My name is: {0}")] // only for dashboard
         public static void Wait500AndCheckToken(string name, PerformContext context)
         {
@@ -24,20 +25,21 @@ namespace HangFireTest.MySql
 
             var jobCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken.ShutdownToken);
 
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 6; i++)
             {
-                Console.WriteLine(i);
+                Console.WriteLine($"{DateTime.Now.ToString("hh:mm:ss")} {i}");
 
-                Thread.Sleep(500);
+                //throw new InvalidOperationException();
+                Thread.Sleep(1000 * 32);
+                //await Task.Delay(1000 * 32);
 
                 using (var stepsCts = new CancellationTokenSource())
                 {
                     try
                     {
+                        context.CancellationToken.ThrowIfCancellationRequested();
                         if (jobCts.IsCancellationRequested)
                             throw new DivideByZeroException();
-
-                        throw new InvalidOperationException();
                     }
                     catch (Exception)
                     {
@@ -48,6 +50,11 @@ namespace HangFireTest.MySql
                 }
             }
             Console.WriteLine("Finished!");
+        }
+
+        public static void Continuation(PerformContext context)
+        {
+            Console.WriteLine("Begin to continue work");
         }
     }
 
@@ -64,9 +71,11 @@ namespace HangFireTest.MySql
                 .Enrich.FromLogContext()
                 .MinimumLevel.Verbose()
                 .CreateLogger();
+
+            var connextionString = "server=localhost;port=3306;database=hf_test;uid=root;password=1111;Convert Zero Datetime=True;Allow User Variables=True";
             GlobalConfiguration.Configuration
                 //.UseColouredConsoleLogProvider() // comment to use Serilog
-                .UseStorage(new MySqlStorage("server=localhost;port=3306;database=hf_test;uid=root;password=1111;Convert Zero Datetime=True;Allow User Variables=True", new MySqlStorageOptions()
+                .UseStorage(new MySqlStorage(connextionString, new MySqlStorageOptions()
                 {
                     QueuePollInterval = TimeSpan.FromSeconds(5)
                 }))
@@ -75,17 +84,36 @@ namespace HangFireTest.MySql
             var options = new BackgroundJobServerOptions
             {
                 Queues = new[] { "critical", "default" },
-                WorkerCount = 2,
-                SchedulePollingInterval = TimeSpan.FromSeconds(2),
+                WorkerCount = 1,
+                SchedulePollingInterval = TimeSpan.FromSeconds(15),
                 ShutdownTimeout = TimeSpan.FromSeconds(3),
-                ServerTimeout = TimeSpan.FromMinutes(1)
+                ServerCheckInterval = TimeSpan.FromSeconds(32),
+                ServerTimeout = TimeSpan.FromSeconds(31)
             };
+
+            //var dbOptions = new DbContextOptionsBuilder().UseMySql(connextionString).Options;
+            //using (var db = new MyDbContext(dbOptions))
+            //{
+            //    db.Database.BeginTransaction();
+            //    db.Foos.Add(new Foo());
+            //    db.SaveChanges();
+
+            //    var id = BackgroundJob.Enqueue(() => MyServices.Wait500AndCheckToken("my job", null));
+            //    //BackgroundJob.ContinueWith(id, () => MyServices.Continuation(null), JobContinuationOptions.OnlyOnSucceededState);
+
+            //    db.Foos.Add(new Foo());
+            //    db.SaveChanges();
+            //    db.Database.RollbackTransaction();
+            //}
 
             using (new BackgroundJobServer(options))
             {
                 //var result = BackgroundJob.Requeue("2");
-                var id = BackgroundJob.Enqueue(() => MyServices.Wait500AndCheckToken("my job", null));
-                Console.WriteLine("press to delete job");
+
+                //var id = BackgroundJob.Enqueue(() => MyServices.Wait500AndCheckToken("my job", null));
+                //BackgroundJob.ContinueWith(id, () => MyServices.Continuation(null), JobContinuationOptions.OnlyOnSucceededState);
+
+                Console.WriteLine("press");
                 Console.ReadLine();
                 //Console.WriteLine("Going to delete");
                 //var wasDeleted = BackgroundJob.Delete(id);

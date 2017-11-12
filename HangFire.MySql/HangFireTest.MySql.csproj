@@ -42,6 +42,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MyDbContext.cs" />
     <Compile Include="MyFilter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -56,6 +57,9 @@
     </PackageReference>
     <PackageReference Include="Hangfire.MySqlStorage">
       <Version>1.0.5</Version>
+    </PackageReference>
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql">
+      <Version>2.0.0.1</Version>
     </PackageReference>
     <PackageReference Include="Serilog.Sinks.Console">
       <Version>3.1.1</Version>
